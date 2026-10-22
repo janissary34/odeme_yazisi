@@ -1,6 +1,7 @@
 import os
 import shutil
 import difflib
+import base64
 from datetime import datetime
 import pandas as pd
 import yaml
@@ -294,11 +295,11 @@ if st.session_state.islenmis_kapsam:
     st.markdown("**Oluşacak Ödeme Cümlesi:**")
     st.code(odeme_cumlesi_uretilen, language="text")
 
-    # Onay kutusu ve indirme
+    # Onay kutusu ve doğrudan indirme
     onay = st.checkbox("Metinleri, tutarları ve hesaplamaları kontrol ettim, onaylıyorum.")
     arsive_ekle = st.checkbox("Bu yazıyı ilerideki aramalar için arşive de dahil et", value=False)
 
-    if st.button("💾 Word Belgesini Oluştur", disabled=not onay, type="primary"):
+    if st.button("💾 Word Belgesini Oluştur ve İndir", disabled=not onay, type="primary"):
         belge_verisi = {
             "ay": secilen_ay,
             "yil": secilen_yil,
@@ -328,7 +329,7 @@ if st.session_state.islenmis_kapsam:
         basarili, mesaj = uretici.uret(belge_verisi, cikti_tam_yol)
 
         if basarili:
-            st.success(f"🎉 Belge başarıyla oluşturuldu: `{dosya_adi}`")
+            st.success(f"🎉 Belge başarıyla oluşturuldu ve indirme başlatıldı: `{dosya_adi}`")
             log_yaz(secilen_tur, firma_unvan, tutar_sayi, 
                     st.session_state.en_benzer_yazi["dosya_adi"] if st.session_state.en_benzer_yazi else "-",
                     skor, True)
@@ -339,12 +340,29 @@ if st.session_state.islenmis_kapsam:
                 shutil.copy(cikti_tam_yol, os.path.join(hedef_klasor, dosya_adi))
                 st.info("Belge arşive kaydedildi.")
 
+            # Dosyayı oku ve Base64 üzerinden tarayıcıya otomatik indirme yaptır
             with open(cikti_tam_yol, "rb") as fp:
-                st.download_button(
-                    label="📥 Word Dosyasını İndir",
-                    data=fp,
-                    file_name=dosya_adi,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                dosya_baytlari = fp.read()
+                b64 = base64.b64encode(dosya_baytlari).decode()
+
+            otomatik_indir_js = f"""
+            <script>
+                const link = window.parent.document.createElement('a');
+                link.href = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}';
+                link.download = '{dosya_adi}';
+                window.parent.document.body.appendChild(link);
+                link.click();
+                window.parent.document.body.removeChild(link);
+            </script>
+            """
+            components.html(otomatik_indir_js, height=0)
+
+            # Tarayıcı popup/otomatik indirme kısıtlamalarına karşı yedek buton
+            st.download_button(
+                label="📥 Otomatik indirme başlamadıysa buraya tıklayın",
+                data=dosya_baytlari,
+                file_name=dosya_adi,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
         else:
             st.error(f"Hata: {mesaj}")
