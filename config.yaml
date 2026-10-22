@@ -1,0 +1,20 @@
+# Gemini API Ayarları
+gemini:
+  model_name: "gemini-3.8-flash"
+  temperature: 0.2
+
+# Benzerlik ve Arama Ayarları
+arama:
+  esik_degeri: 0.35  # Bu değerin altındaki benzerliklerde kullanıcı uyarılır
+  max_ornek_sayisi: 3
+
+# Finansal Varsayılanlar
+finans:
+  varsayilan_kdv: 20
+  kdv_oranlari: [0, 10, 20]
+
+# Belge Ayarları
+belge:
+  sayi_formati: "Sayı: T-YK"
+  hitap: "ARI TEKNOKENT GENEL MÜDÜRLÜĞÜ’NE"
+  kapanis: "Saygılarımla,"

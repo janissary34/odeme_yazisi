@@ -1,0 +1,7 @@
+havale:
+  ad: "Faturaya İstinaden Firmaya Havale/EFT"
+  metin: "Söz konusu hizmetin toplam bedeli olan {{ tutar_kdvsiz }} TL + KDV ({{ tutar_kdvli }} TL)'nin {{ firma_unvan }}'ne ödenmesi için gereğini izninize arz ederim."
+
+kredi_karti:
+  ad: "Şirket Kredi Kartı ile Ödeme"
+  metin: "Söz konusu hizmetin toplam bedeli olan {{ tutar_kdvsiz }} TL'nin şirket kredi kartı ile sağlanması planlanmaktadır. Gerekli ödemenin yapılabilmesi için onayınızı arz ederiz."
