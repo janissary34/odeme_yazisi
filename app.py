@@ -111,6 +111,12 @@ with col1:
         unvan_varsayilan = str(secilen_firma_satir.get("Firma_Unvan", ""))
         banka_varsayilan = str(secilen_firma_satir.get("Banka", ""))
         iban_varsayilan = str(secilen_firma_satir.get("IBAN", ""))
+        if unvan_varsayilan.strip().lower() == "nan":
+            unvan_varsayilan = ""
+        if banka_varsayilan.strip().lower() == "nan":
+            banka_varsayilan = ""
+        if iban_varsayilan.strip().lower() == "nan":
+            iban_varsayilan = ""
     except Exception as e:
         st.error(f"firmalar.xlsx okunamadı: {e}")
         st.stop()
@@ -170,6 +176,14 @@ with col2:
     secilen_sablon_ad = st.selectbox("Ödeme Şablonu", sablon_adlari)
     secilen_sablon_key = sablon_anahtarlari[sablon_adlari.index(secilen_sablon_ad)]
 
+    # Ek Belgeler (Not Bölümü Checkbox'ları)
+    st.markdown("**Ek Belgeler (Resmi Not Alanı):**")
+    col_ek1, col_ek2 = st.columns(2)
+    with col_ek1:
+        ek_sozlesme = st.checkbox("📄 Sözleşme / Ek Protokol Var", value=True)
+    with col_ek2:
+        ek_komisyon = st.checkbox("📑 Komisyon Kararı / Fiyat Teklifi Var", value=False)
+
     # Bütçe Tablosu (Opsiyonel)
     with st.expander("📊 Bütçe Tablosu Ekle (Opsiyonel)"):
         tablo_aktif = st.checkbox("Bütçe tablosunu dahil et", value=False)
@@ -198,7 +212,6 @@ if "en_yuksek_skor" not in st.session_state:
     st.session_state.en_yuksek_skor = 0.0
 
 if st.button("🔍 Yazıyı Hazırla ve Önizle", type="primary"):
-    # Zorunlu alan doğrulamaları
     eksik = False
     
     if not firma_unvan.strip():
@@ -228,13 +241,11 @@ if st.button("🔍 Yazıyı Hazırla ve Önizle", type="primary"):
             ai_kullanildi = False
             
             if benzerler and benzerler[0][1] >= 0.90:
-                # Neredeyse birebir eşleşme
                 st.session_state.en_benzer_yazi = benzerler[0][0]
                 st.session_state.en_yuksek_skor = benzerler[0][1]
                 st.session_state.islenmis_konu = st.session_state.en_benzer_yazi["konu"]
                 st.session_state.islenmis_kapsam = kullanici_kapsam
             else:
-                # Gemini ile kurumsal üsluba göre üret
                 try:
                     ai = AIServisi(
                         model_name=config["gemini"]["model_name"],
@@ -267,7 +278,6 @@ if st.session_state.islenmis_kapsam:
     else:
         st.success(f"✅ Baz Alınan Belge: **{st.session_state.en_benzer_yazi['dosya_adi']}** (Benzerlik: %{skor*100:.1f})")
 
-    # Yan Yana Kıyaslama
     col_eski, col_yeni = st.columns(2)
     with col_eski:
         st.markdown("**Arşivdeki Orijinal Kapsam:**")
@@ -295,12 +305,19 @@ if st.session_state.islenmis_kapsam:
     st.markdown("**Oluşacak Ödeme Cümlesi:**")
     st.code(odeme_cumlesi_uretilen, language="text")
 
-    # Onay kutusu ve doğrudan indirme
-    onay = st.checkbox("Metinleri, tutarları ve hesaplamaları kontrol ettim, onaylıyorum.")
-    arsive_ekle = st.checkbox("Bu yazıyı ilerideki aramalar için arşive de dahil et", value=False)
+    # Onay kutuları ve Punto Seçimi
+    col_onay, col_punto = st.columns([3, 1])
+    with col_onay:
+        onay = st.checkbox("Metinleri, tutarları ve hesaplamaları kontrol ettim, onaylıyorum.")
+        arsive_ekle = st.checkbox("Bu yazıyı ilerideki aramalar için arşive de dahil et", value=False)
+    with col_punto:
+        secilen_punto = st.selectbox("Yazı Boyutu (Punto)", [10, 11, 12, 13, 14, 15, 16], index=4)  # Varsayılan 14
 
     if st.button("💾 Word Belgesini Oluştur ve İndir", disabled=not onay, type="primary"):
         belge_verisi = {
+            "punto": secilen_punto,
+            "ek_sozlesme": ek_sozlesme,
+            "ek_komisyon": ek_komisyon,
             "ay": secilen_ay,
             "yil": secilen_yil,
             "sayi_formati": config["belge"]["sayi_formati"],
@@ -340,7 +357,7 @@ if st.session_state.islenmis_kapsam:
                 shutil.copy(cikti_tam_yol, os.path.join(hedef_klasor, dosya_adi))
                 st.info("Belge arşive kaydedildi.")
 
-            # Dosyayı oku ve Base64 üzerinden tarayıcıya otomatik indirme yaptır
+            # Dosyayı oku ve Base64 üzerinden otomatik indir
             with open(cikti_tam_yol, "rb") as fp:
                 dosya_baytlari = fp.read()
                 b64 = base64.b64encode(dosya_baytlari).decode()
@@ -357,7 +374,7 @@ if st.session_state.islenmis_kapsam:
             """
             components.html(otomatik_indir_js, height=0)
 
-            # Tarayıcı popup/otomatik indirme kısıtlamalarına karşı yedek buton
+            # Yedek buton
             st.download_button(
                 label="📥 Otomatik indirme başlamadıysa buraya tıklayın",
                 data=dosya_baytlari,
