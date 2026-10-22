@@ -5,12 +5,25 @@ from datetime import datetime
 import pandas as pd
 import yaml
 import streamlit as st
+import streamlit.components.v1 as components
 
 from arsiv_yoneticisi import ArsivYoneticisi
 from ai_servisi import AIServisi
 from belge_ureticisi import BelgeUreticisi, para_formatla
 
 st.set_page_config(page_title="Ödeme Yazısı Otomasyonu", layout="wide")
+
+# İlgili alana yumuşak kaydırma (scroll) yaptıran yardımcı fonksiyon
+def alana_kaydir(element_id: str):
+    js = f"""
+    <script>
+        const el = window.parent.document.getElementById('{element_id}');
+        if (el) {{
+            el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+        }}
+    </script>
+    """
+    components.html(js, height=0)
 
 # Yapılandırmaları yükle
 @st.cache_resource
@@ -101,15 +114,25 @@ with col1:
         st.error(f"firmalar.xlsx okunamadı: {e}")
         st.stop()
 
-    firma_unvan = st.text_input("Firma Tam Unvanı", value=unvan_varsayilan)
+    st.markdown('<div id="alan_firma_unvan"></div>', unsafe_allow_html=True)
+    firma_unvan = st.text_input("Firma Tam Unvanı *", value=unvan_varsayilan)
+    
     banka_bilgisi = st.text_input("Banka / Şube", value=banka_varsayilan)
-    iban_bilgisi = st.text_input("IBAN Numarası", value=iban_varsayilan)
+    
+    st.markdown('<div id="alan_iban"></div>', unsafe_allow_html=True)
+    iban_bilgisi = st.text_input("IBAN Numarası *", value=iban_varsayilan)
 
     # İmzacılar
     try:
         df_imzacilar = pd.read_excel("imzacilar.xlsx")
         imzaci_secenekleri = [f"{row['Ad_Soyad']} - {row['Unvan']}" for _, row in df_imzacilar.iterrows()]
-        secilen_imzaci_metinleri = st.multiselect("3. İmzalayacak Kişiler (1-3 Kişi)", imzaci_secenekleri, default=[imzaci_secenekleri[0]] if imzaci_secenekleri else None)
+        
+        st.markdown('<div id="alan_imzacilar"></div>', unsafe_allow_html=True)
+        secilen_imzaci_metinleri = st.multiselect(
+            "3. İmzalayacak Kişiler (1-3 Kişi) *", 
+            imzaci_secenekleri, 
+            default=[imzaci_secenekleri[0]] if imzaci_secenekleri else None
+        )
         imzacilar = []
         for im in secilen_imzaci_metinleri:
             ad, unvan = im.split(" - ", 1)
@@ -126,7 +149,8 @@ with col2:
     with col_yil:
         secilen_yil = st.selectbox("Yıl", [2025, 2026, 2027], index=1)
 
-    tutar_str = st.text_input("KDV'siz Tutar (TL)", value="10.000,00", help="Örnek format: 15.000,00")
+    st.markdown('<div id="alan_tutar"></div>', unsafe_allow_html=True)
+    tutar_str = st.text_input("KDV'siz Tutar (TL) *", value="10.000,00", help="Örnek format: 15.000,00")
     
     # Türkçe formatı sayıya çevirme
     try:
@@ -159,7 +183,8 @@ if onerilen_kapsamlar:
 else:
     kapsam_taslak = ""
 
-kullanici_kapsam = st.text_area("Hizmet Açıklaması / Detayı", value=kapsam_taslak, height=100, placeholder="Örnek: 15-16 Nisan tarihlerinde İTÜ Çekirdek etkinliği için afiş baskısı alındı.")
+st.markdown('<div id="alan_kapsam"></div>', unsafe_allow_html=True)
+kullanici_kapsam = st.text_area("Hizmet Açıklaması / Detayı *", value=kapsam_taslak, height=100, placeholder="Örnek: 15-16 Nisan tarihlerinde İTÜ Çekirdek etkinliği için afiş baskısı alındı.")
 
 # Oturuma durum kaydetme
 if "islenmis_konu" not in st.session_state:
@@ -172,9 +197,31 @@ if "en_yuksek_skor" not in st.session_state:
     st.session_state.en_yuksek_skor = 0.0
 
 if st.button("🔍 Yazıyı Hazırla ve Önizle", type="primary"):
-    if not kullanici_kapsam.strip():
-        st.warning("Lütfen bir hizmet açıklaması girin.")
-    else:
+    # Zorunlu alan doğrulamaları
+    eksik = False
+    
+    if not firma_unvan.strip():
+        st.error("⚠️ Lütfen 'Firma Tam Unvanı' alanını doldurunuz!")
+        alana_kaydir("alan_firma_unvan")
+        eksik = True
+    elif not iban_bilgisi.strip():
+        st.error("⚠️ Lütfen 'IBAN Numarası' alanını doldurunuz!")
+        alana_kaydir("alan_iban")
+        eksik = True
+    elif len(imzacilar) == 0:
+        st.error("⚠️ Lütfen en az 1 imzalayacak kişi seçiniz!")
+        alana_kaydir("alan_imzacilar")
+        eksik = True
+    elif tutar_sayi <= 0:
+        st.error("⚠️ Lütfen geçerli bir 'KDV'siz Tutar' giriniz (0'dan büyük olmalıdır)!")
+        alana_kaydir("alan_tutar")
+        eksik = True
+    elif not kullanici_kapsam.strip():
+        st.error("⚠️ Lütfen 'Hizmet Açıklaması / Detayı' alanını doldurunuz!")
+        alana_kaydir("alan_kapsam")
+        eksik = True
+
+    if not eksik:
         with st.spinner("Arşiv taranıyor ve metin hazırlanıyor..."):
             benzerler = arsiv.benzerleri_bul(kullanici_kapsam, secilen_tur, limit=3)
             ai_kullanildi = False
