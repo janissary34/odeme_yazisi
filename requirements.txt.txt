@@ -1,0 +1,7 @@
+streamlit
+google-genai
+python-dotenv
+python-docx
+pandas
+openpyxl
+pyyaml
